@@ -1,0 +1,11 @@
+# Non-secret config, injected into the API and seed pods as env vars.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ticketflow-api-config
+data:
+  APP_VERSION: "0.1.0"
+  ENVIRONMENT: "kubernetes"
+  CLASSIFIER: "rule"          # no Ollama in-cluster, so use the rule-based path
+  MYSQL_DATABASE: "ticketflow"
+  MYSQL_USER: "ticketflow"

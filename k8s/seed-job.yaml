@@ -1,0 +1,21 @@
+# One-time Job: creates the tables and inserts demo data in the MySQL pod.
+# Retries until MySQL is ready, then completes.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ticketflow-api-seed
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          image: ticketflow-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["python", "scripts/seed_demo_data.py"]
+          envFrom:
+            - configMapRef:
+                name: ticketflow-api-config
+            - secretRef:
+                name: ticketflow-api-secret

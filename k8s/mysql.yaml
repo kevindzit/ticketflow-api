@@ -1,0 +1,73 @@
+# MySQL running in the cluster as a StatefulSet (stable identity + a persistent
+# volume). For local learning only - in production you'd use a managed database.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ticketflow-mysql
+  labels:
+    app: ticketflow-mysql
+spec:
+  clusterIP: None            # headless service for the StatefulSet
+  selector:
+    app: ticketflow-mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ticketflow-mysql
+spec:
+  serviceName: ticketflow-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ticketflow-mysql
+  template:
+    metadata:
+      labels:
+        app: ticketflow-mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ticketflow-api-secret
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: ticketflow-api-config
+                  key: MYSQL_DATABASE
+            - name: MYSQL_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: ticketflow-api-config
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ticketflow-api-secret
+                  key: MYSQL_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -p$MYSQL_ROOT_PASSWORD --silent"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
