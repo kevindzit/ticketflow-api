@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.db
+
+# local kind binary (downloaded by deploy_kind.bat) and scratch scripts
+kind.exe
+status.bat
+debug.bat
+test.bat
+verify.bat
+redeploy.bat
