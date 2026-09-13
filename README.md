@@ -11,7 +11,8 @@ created through the API shows up in the TicketFlow dashboard.
 - `POST` a support ticket -> it classifies the ticket (category + priority), auto-assigns
   a technician by skill / availability / workload, and saves it.
 - Classification is **pluggable**: it uses Ollama / Llama 3.1 when that's available and
-  falls back to rule-based logic when it isn't, so it runs and tests anywhere.
+  falls back to rule-based logic when it isn't or returns invalid output, so it runs
+  and tests anywhere.
 
 ## Stack
 Python / Flask, SQLAlchemy, MySQL, gunicorn, Docker, Kubernetes, pytest, GitHub Actions.
@@ -28,6 +29,25 @@ curl -X POST localhost:30080/api/tickets -H "X-API-Key: change-me" -H "Content-T
   -d '{"client_name":"Acme Co","subject":"VPN is down","description":"office outage, urgent"}'
 ```
 
+### Ticket input and classification
+
+Send a JSON object with `subject`, `description`, and either `client_id` or `client_name`.
+Subject and description must be nonempty strings. Text is trimmed before validation.
+The subject limit is 200 characters and the client name limit is 100 characters,
+matching the database columns. A supplied client ID must be an integer from 1 to
+2147483647. Nulls, booleans, and numeric strings are not accepted as IDs.
+
+If both client fields are supplied, both must be valid and `client_id` takes precedence.
+Invalid input returns a JSON error with HTTP 400 before a client or ticket is created.
+An unknown client ID returns HTTP 404.
+
+Model output must contain a supported category, a supported priority, and a nonempty
+text summary. Categories are Network, Hardware, Software, Security, Email, and Other.
+Priorities are Low, Medium, High, and Critical. Surrounding whitespace is removed;
+the labels must otherwise match these values. If validation fails, the existing
+rules classify the original ticket instead. The response reports `classified_by`
+as `rules` when this happens.
+
 ## Run locally
 ```
 python -m venv venv
@@ -42,11 +62,14 @@ By default it uses a local SQLite file. To share TicketFlow's database, set
 
 ## Tests
 ```
-pip install -r requirements-dev.txt
+pip install -r requirements.txt -r requirements-dev.txt
 pytest
 ```
-CI runs the tests on every push (`.github/workflows/ci.yml`). They use the rule-based
-classifier and a throwaway SQLite db, so no MySQL or Ollama is needed.
+CI runs the tests on pushes and pull requests (`.github/workflows/ci.yml`). They use
+a throwaway SQLite db and default to the rule-based classifier. Validation tests
+also exercise the Ollama path with mocked responses, including valid output,
+unsupported labels, missing fields, and unavailable models. No MySQL or Ollama
+server is needed.
 
 ## Docker
 ```
