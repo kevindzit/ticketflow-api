@@ -29,24 +29,32 @@ OPENAPI = {
             },
             "post": {
                 "summary": "Create a ticket (classify + auto-assign)",
+                "description": "Send subject, description, and either client_id or client_name. "
+                               "Text is trimmed before validation. If both client fields are supplied, "
+                               "both must be valid and client_id takes precedence.",
                 "security": [{"ApiKeyAuth": []}],
                 "requestBody": {
                     "required": True,
                     "content": {"application/json": {"schema": {
                         "type": "object",
                         "properties": {
-                            "subject": {"type": "string"},
-                            "description": {"type": "string"},
-                            "client_name": {"type": "string"},
-                            "client_id": {"type": "integer"},
+                            "subject": {"type": "string", "minLength": 1, "maxLength": 200,
+                                        "pattern": "\\S"},
+                            "description": {"type": "string", "minLength": 1, "pattern": "\\S"},
+                            "client_name": {"type": "string", "minLength": 1, "maxLength": 100,
+                                            "pattern": "\\S"},
+                            "client_id": {"type": "integer", "format": "int32",
+                                          "minimum": 1, "maximum": 2147483647},
                         },
                         "required": ["subject", "description"],
+                        "anyOf": [{"required": ["client_id"]}, {"required": ["client_name"]}],
                     }}},
                 },
                 "responses": {
                     "201": {"description": "Created"},
-                    "400": {"description": "Bad request"},
+                    "400": {"description": "Invalid JSON or ticket fields"},
                     "401": {"description": "Unauthorized"},
+                    "404": {"description": "Client ID not found"},
                 },
             },
         },
