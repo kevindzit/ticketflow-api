@@ -1,7 +1,7 @@
 """Shared pytest fixtures.
 
-Tests run against a throwaway SQLite file and force the rule-based classifier,
-so they need no MySQL and no Ollama - they pass anywhere, including CI.
+Tests run against a throwaway SQLite file and default to the rule-based classifier.
+Ollama validation tests use mocked responses, so no MySQL or Ollama server is needed.
 """
 
 import json
@@ -10,7 +10,7 @@ import tempfile
 
 import pytest
 
-# force the deterministic rule-based classifier for tests
+# use the deterministic rule-based classifier unless a test overrides it
 os.environ["CLASSIFIER"] = "rule"
 
 _DB_PATH = os.path.join(tempfile.gettempdir(), "ticketflow_api_test.db")
