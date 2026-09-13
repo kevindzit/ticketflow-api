@@ -27,16 +27,37 @@ def _ticket_json(t):
 @require_api_key
 def create_ticket():
     """Submit a ticket: classify it, auto-assign a technician, save it."""
-    data = request.get_json(silent=True) or {}
-    subject = (data.get("subject") or "").strip()
-    description = (data.get("description") or "").strip()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
+
+    subject = data.get("subject")
+    description = data.get("description")
+    if not isinstance(subject, str) or not isinstance(description, str):
+        return jsonify({"error": "subject and description must be strings"}), 400
+
+    subject = subject.strip()
+    description = description.strip()
     if not subject or not description:
         return jsonify({"error": "subject and description are required"}), 400
+    if len(subject) > 200:
+        return jsonify({"error": "subject must be 200 characters or fewer"}), 400
 
-    # resolve the client by id, or get-or-create by name
     client_id = data.get("client_id")
     client_name = data.get("client_name")
-    if client_id:
+    if "client_id" in data:
+        # bool is a Python int too, but it is not a client id
+        if type(client_id) is not int or not 1 <= client_id <= 2147483647:
+            return jsonify({"error": "client_id must be an integer from 1 to 2147483647"}), 400
+    if "client_name" in data:
+        if not isinstance(client_name, str):
+            return jsonify({"error": "client_name must be a string"}), 400
+        client_name = client_name.strip()
+        if not client_name or len(client_name) > 100:
+            return jsonify({"error": "client_name must be 1 to 100 characters"}), 400
+
+    # resolve the client by id, or get-or-create by name
+    if client_id is not None:
         client = db.session.get(Client, client_id)
         if not client:
             return jsonify({"error": f"client_id {client_id} not found"}), 404

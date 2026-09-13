@@ -1,8 +1,8 @@
 """Pluggable ticket classifier.
 
 Tries an LLM (Ollama / Llama 3.1) when it's available, and falls back to fast
-rule-based logic when it isn't - so the service runs and tests anywhere
-(laptop, Kubernetes, CI). To enable the LLM path: `pip install ollama` and have
+rule-based logic when it isn't or returns invalid output. The service runs and
+tests anywhere (laptop, Kubernetes, CI). To enable the LLM path: `pip install ollama` and have
 Ollama running with the model pulled. Otherwise it uses the rules automatically.
 
 Categories and priorities match TicketFlow's values so results line up with the
@@ -20,6 +20,9 @@ CATEGORIES = {
     "Hardware": ["laptop", "monitor", "printer", "device", "battery", "screen", "keyboard"],
     "Software": ["install", "application", "app crash", "update", "license", "software"],
 }
+
+VALID_CATEGORIES = set(CATEGORIES) | {"Other"}
+VALID_PRIORITIES = {"Low", "Medium", "High", "Critical"}
 
 CRITICAL = ["breach", "ransomware", "data loss", "down", "outage", "critical"]
 HIGH = ["urgent", "cannot", "can't", "asap", "locked", "security"]
@@ -73,10 +76,29 @@ class OllamaClassifier:
             format="json",
         )
         data = json.loads(resp["message"]["content"])
+        if not isinstance(data, dict):
+            raise ValueError("classification must be a JSON object")
+
+        category = data.get("category")
+        priority = data.get("priority")
+        summary = data.get("summary")
+        if not all(isinstance(value, str) for value in (category, priority, summary)):
+            raise ValueError("category, priority, and summary must be strings")
+
+        category = category.strip()
+        priority = priority.strip()
+        summary = summary.strip()
+        if category not in VALID_CATEGORIES:
+            raise ValueError("unsupported ticket category")
+        if priority not in VALID_PRIORITIES:
+            raise ValueError("unsupported ticket priority")
+        if not summary:
+            raise ValueError("summary must not be empty")
+
         return {
-            "category": data.get("category", "Other"),
-            "priority": data.get("priority", "Medium"),
-            "summary": data.get("summary", ""),
+            "category": category,
+            "priority": priority,
+            "summary": summary,
             "classified_by": self.name,
         }
 
@@ -93,7 +115,7 @@ def classify(subject, description):
         try:
             return OllamaClassifier().classify(subject, description)
         except Exception:
-            # LLM not installed/reachable or returned something unparseable -> use rules
+            # use rules if the LLM is unavailable or returns invalid output
             pass
 
     return RuleBasedClassifier().classify(subject, description)
